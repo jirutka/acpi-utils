@@ -1,0 +1,66 @@
+= lid-state(1)
+:doctype: manpage
+:repo-uri: https://github.com/jirutka/acpi-utils
+:issues-uri: {repo-uri}/issues
+
+== NAME
+
+lid-state - query state of the device's lid
+
+
+== SYNOPSIS
+
+*lid-state* +
+*lid-state* (*--open* | *--closed*) [-- <__cmd__...>] +
+*lid-state* (*--version* | *--help*)
+
+
+== DESCRIPTION
+
+*lid-state*, if invoked without any arguments, prints the current state of the lid: "`open`" or "`closed`".
+
+*lid-state*, invoked with *--open* or *--closed* and no _cmd_, exits with status 0 if the current lid state corresponds to the specified option, otherwise exits with status 1.
+
+*lid-state*, invoked with _cmd_, runs the _cmd_ if the current lid state corresponds to the specified option, otherwise just exits with status 0.
+
+
+== OPTIONS
+
+*-o*, *--open*::
+If _cmd_ is given: execute _cmd_ if the lid is open, otherwise do nothing and exit with 0. +
+If _cmd_ is not given: exit with 0 if the lid is open, otherwise exit with 1.
+
+*-c*, *--closed*::
+Analogous to *--open*.
+
+*-V*, *--version*::
+Print script name & version and exit.
+
+*-h*, *--help*::
+Print the help message and exit.
+
+
+== FILES
+
+*/proc/acpi/button/lid/LID/state*::
+State of the lid exported by the ACPI subsystem.
+
+
+== EXIT CODES
+
+* *0* -- Clean exit, no error has encountered.
+* *1* -- See <<DESCRIPTION>>.
+* *100* -- Invalid usage.
+* *101* -- Failed to read `/proc/acpi/button/lid/LID/state`.
+
+If _cmd_ is given and the condition (*--open* or *--closed*) is met, *lid-state* exits with the exit status of the _cmd_.
+
+
+== AUTHORS
+
+Jakub Jirutka
+
+
+== REPORTING BUGS
+
+Report bugs to the project`'s issue tracker at {issues-uri}.

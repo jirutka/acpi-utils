@@ -1,0 +1,162 @@
+= power-supply(1)
+:doctype: manpage
+:repo-uri: https://github.com/jirutka/acpi-utils
+:issues-uri: {repo-uri}/issues
+
+== NAME
+
+power-supply - query properties of power supply devices
+
+
+== SYNOPSIS
+
+*power-supply* +
+*power-supply* [-r] -d <__dev__> [_prop-options_] [-d <__dev__> [_prop-options_]]... [-- <__cmd__...>] +
+*power-supply* (*-V* | *-h*)
+
+
+== DESCRIPTION
+
+*power-supply*, if invoked without any arguments, prints a list of AC Adapters and Batteries in format `<dev-type>:<dev-idx> <dev-name>`.
+
+* _dev-type_ is "`adapter`" (AC Adapter) or "`battery`",
+* _dev-idx_ is a 0-based ordinal number of the device type,
+* _dev-name_ is the name of the device (directory) in `/sys/class/power_supply`.
+
+*power-supply*, invoked with *-d* and the property option(s) without argument, prints value(s) of the specified property/ies.
+
+*power-supply*, invoked with *-d* and the property option(s) with a _value_ argument (conditions), tests if all the specified properties satisfy the specified condition.
+
+if _cmd_ is given: +
+.. if conditions are satisfied: _cmd_ is executed. +
+.. else: exits with status 0. +
+else (_cmd_ is not given): +
+.. if conditions are satisfied: exits with status 0. +
+.. else exits with status 1.
+
+Property values are converted to lowercase and spaces replaced with hyphens ("`-`"), unless *--raw* is specified.
+
+
+== OPTIONS
+
+*-d <dev>[:<idx>]*, *--dev <dev>[:<idx>]*::
+Either _dev-name_ of the device under `/sys/class/power_supply` or _dev-type_ of the device, optionally followed by a colon and _dev-idx_ -- 0-based ordinal number (when multiple devices of the same type exist).
++
+The _dev-type_ is one of:
++
+* "`adapter`", "`ac`", or "`a`" for an AC Adapter (Mains),
+* "`battery`", "`bat`" or "`b`" for a Battery.
+
+*-r*, *--raw*::
+Output (or compare) property values as-is, without converting to lowercase and replacing spaces with "`-`".
+
+*--all*::
+Print all properties of the device in format: `<prop> <value>`.
+
+*--*<__prop__>::
+Print value of the device property _prop_ (hyphens will be replaced with underscores).
+
+*--*<__prop__> [!]<__value__> | <__start__>-<__end__>::
+Specify condition on the property _prop_ -- it can be a value (`<prop> = <value>`), a value prefixed with "`!`" (`<prop> != <value>`) or an inclusive integer range (`<prop> -ge <start> && <prop> -le <end>`).
+
+*-V*, *--version*::
+Print script name & version and exit.
+
+*-h*, *--help*::
+Show the help message and exit.
+
+
+=== AC Adapter options
+
+*-s* [[!]<__value__>], *--status* [[!]<__value__>]::
+Alias for *--online*.
+Valid values are: "`offline`", "`online`" (or 0, 1 if *--raw*).
+
+
+=== Battery options
+
+*-s* [[!]<__value__>]::
+Alias for *--status*.
+Valid values are: "`unknown`", "`charging`", "`discharging`", "`not-charging`", "`full`".
+
+*-c* [[!]<__value__> | <__start__>-<__end__>]::
+Alias for *--capacity*.
+Valid value is integer between 0 and 100.
+
+*-C* [[!]<__value__>]::
+Alias for *--capacity-level*.
+Valid values are: "`unknown`", "`critical`", "`low`", "`normal`", "`high`", "`full`".
+
+
+== EXIT CODES
+
+* *0* -- Clean exit, no error has encountered.
+* *1* -- The conditions were not satisfied (see <<DESCRIPTION>> for more information).
+* *100* -- Invalid usage.
+* *101* -- The device was not found or has unsupported type.
+* *102* -- The device does not provide the requested property or failed to read it.
+
+If _cmd_ is given and the conditions are met, *power-supply* exits with the exit status of the _cmd_.
+
+
+== FILES
+
+*/sys/class/power_supply/**::
+The directory where the devices and properties are read from.
+
+
+== EXAMPLES
+
+List all AC Adapters and Batteries found in `/sys/class/power_supply`::
++
+....
+$ power-supply
+adapter:0 AC
+battery:0 CMB1
+battery:1 hidpp_battery_38
+....
+
+Print all properties of Battery 0::
++
+....
+$ power-supply -d battery:0 --all
+alarm 0
+capacity 30
+capacity_level normal
+cycle_count 19
+energy_full 56570000
+energy_full_design 57020000
+energy_now 17080000
+manufacturer smp
+model_name 5b10w139
+...
+....
+
+Print the current capacity of Battery 0::
++
+....
+$ power-supply -d bat --capacity
+95
+....
+
+Exit with status 0 if AC Adapter 0 is online, 1 if it`'s offline::
++
+....
+$ power-supply -d adapter -s online
+....
+
+Run command `doas zzz -H` if AC Adapter 0 is offline and Battery 0 has capacity below 11 %::
++
+....
+$ power-supply -d ac -s offline -d bat -c 0-10 -- doas zzz -H
+....
+
+
+== AUTHORS
+
+Jakub Jirutka
+
+
+== REPORTING BUGS
+
+Report bugs to the project`'s issue tracker at {issues-uri}.

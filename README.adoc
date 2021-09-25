@@ -1,0 +1,55 @@
+= ACPI utils
+:proj-name: acpi-utils
+:gh-name: jirutka/{proj-name}
+:version: 0.0.0
+
+{proj-name} provides small utilities for properties of the power supply devices and the (laptop) lid.
+They are designed for easy use in scripts and one-liners for e.g. conditional execution of commands when specified conditions are met.
+
+For example, it can be used with https://github.com/swaywm/swayidle[swayidle] to suspend the computer after 10 minutes of inactivity *if* running on battery (i.e. AC adapter is unplugged):
+
+[source, sh]
+swayidle \
+    timeout 300 'swaylockd' \
+    timeout 600 'power-supply -d ac -s offline -- doas zzz'
+
+
+== Usage
+
+Refer to the manual pages for usage information and more examples:
+
+* link:lid-state.1.adoc[lid-state(1)]
+* link:power-supply.1.adoc[power-supply(1)]
+
+
+== Requirements
+
+* http://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html[POSIX-sh] compatible shell (e.g. Busybox ash, dash, ZSH, bash, …)
+* `cat`, `sed`, `test`, `tr` (BSD, Busybox or GNU)
+
+
+== Installation
+
+=== On Alpine Linux
+
+Install package {proj-name} from the Alpine’s Edge community repository:
+
+[source, sh, subs="+attributes"]
+apk add {proj-name}
+
+
+=== From Tarball
+
+[source, sh, subs="+attributes"]
+wget https://github.com/{gh-name}/archive/v{version}/{proj-name}-{version}.tar.gz
+tar -xzf {proj-name}-{version}.tar.gz
+cd {proj-name}-{version}
+make install DESTDIR=/ prefix=/usr/local
+
+...or just download the scripts directly.
+
+
+== License
+
+This project is licensed under http://opensource.org/licenses/MIT/[MIT License].
+For the full text of the license, see the link:LICENSE[LICENSE] file.

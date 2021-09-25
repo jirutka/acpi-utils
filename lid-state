@@ -1,0 +1,74 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2021 Jakub Jirutka <jakub@jirutka.cz>
+# SPDX-License-Identifier: MIT
+#---help---
+# Usage:
+#   lid-state
+#   lid-state (--open | --closed) [-- <cmd...>]
+#   lid-state (--version | --help)
+#
+# Query state of the device's lid via /proc/acpi. If no option is give, "open"
+# or "closed" is printed.
+#
+# Arguments:
+#   <cmd...>       Command (and arguments) to execute if the lid is open or
+#                  closed, respectively.
+#
+# Options:
+#   -o --open      If <cmd...> is given: execute <cmd...> if the lid is open,
+#                  otherwise exit with 0.
+#                  If <cmd...> is not given: exit with 0 if the lid is open,
+#                  otherwise exit with 1.
+#
+#   -c --closed    Analogous to --open.
+#
+#   -V --version   Print script name & version and exit.
+#
+#   -h --help      Show this message and exit.
+#
+# Please report bugs at <https://github.com/jirutka/acpi-utils/issues>
+#---help---
+set -u
+
+readonly PROGNAME='lid-state'
+readonly VERSION='0.0.0'
+
+readonly STATE_FILE='/proc/acpi/button/lid/LID/state'
+readonly HELP_TAG='#---help---'
+
+case "${1:-}" in
+	-V | --version)
+		echo "$PROGNAME $VERSION"; exit 0
+	;;
+	-h | --help)
+		sed -n "/^$HELP_TAG/,/^$HELP_TAG/{/^$HELP_TAG/d; s/^# \\?//; p}" "$0"; exit 0
+	;;
+esac
+
+if ! [ -r "$STATE_FILE" ]; then
+	echo "$PROGNAME: $STATE_FILE does not exist or is not readable!" >&2
+	exit 101
+fi
+read -r _ state < "$STATE_FILE" || exit 101
+
+if [ $# -eq 0 ]; then
+	echo "$state"
+	exit 0
+fi
+
+res=1
+case "$1" in
+	-o | --open) [ "$state" = open ] && res=0;;
+	-c | --closed) [ "$state" = closed ] && res=0;;
+	*) echo "$PROGNAME: invalid argument: $1" >&2; exit 100;;
+esac
+shift
+[ $# -gt 1 ] && [ "$1" = '--' ] && shift
+
+if [ $# -eq 0 ]; then
+	exit $res
+elif [ $res -eq 0 ]; then
+	exec "$@"
+else
+	exit 0
+fi

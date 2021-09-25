@@ -1,0 +1,257 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2021 Jakub Jirutka <jakub@jirutka.cz>
+# SPDX-License-Identifier: MIT
+#---help---
+# Usage:
+#   power-supply [-r] -d <dev> [options] [-d <dev> [options]]... [-- <cmd...>]
+#   power-supply [-V | -h]
+#
+# Display status and other properties of AC Adapters and Batteries from
+# /sys/class/power_supply, ask if one or more properties is (not) equal to
+# specified value and optionally run a command if the conditions are met.
+#
+# Arguments:
+#   <cmd...>  Command (and arguments) to execute if the specified conditions are
+#             evaluated as true.
+#
+# Options:
+#   -d --dev <dev>[:<idx>]
+#       Either exact name of the device under /sys/class/power_supply or type of
+#       the device, optionally followed by a colon and 0-based ordinal number
+#       (when multiple devices of the same type exist). The type is one of:
+#       - "adapter", "ac", or "a" for an AC adapter (Mains),
+#       - "battery", "bat" or "b" for a battery.
+#
+#   -r --raw
+#       Print (or compare) property values as-is, without converting to lowercase
+#       and replacing spaces with "-".
+#
+#   --all
+#       Show all properties of the device in format: <prop> <value>.
+#
+#   --<prop>
+#       Print value of the device property <prop> (hyphens will be replaced with
+#       underscores).
+#
+#   --<prop> [!]<value> | <start>-<end>
+#       Specify condition on the property <prop> - it can be a value
+#       (<prop> = <value>), value prefixed with "!" (<prop> != <value>) or
+#       inclusive integer range (<prop> -ge <start> && <prop> -le <end>).
+#
+#   -V --version
+#       Print script name & version and exit.
+#
+#   -h --help
+#       Show this message and exit.
+#
+# Adapter options:
+#   -s --status [[!]<value>]
+#       Alias for --online. Valid values are: offline, online (or 0, 1 if --raw).
+#
+# Battery options:
+#   -s [[!]<value>]
+#       Alias for --status. Valid values are: unknown, charging, discharging,
+#       not-charging, full.
+#
+#   -c [[!]<value> | <start>-<end>]
+#       Alias for --capacity. Valid value is integer between 0 and 100.
+#
+#   -C [[!]<value>]
+#       Alias for --capacity-level. Valid values are: unknown, critical, low,
+#       normal, high, full.
+#
+# Please report bugs at <https://github.com/jirutka/acpi-utils/issues>
+#---help---
+set -u
+
+readonly PROGNAME='power-supply'
+readonly VERSION='0.0.0'
+readonly SYS_PS_DIR='/sys/class/power_supply'
+
+
+help() {
+	local tag='#---help---'
+	sed -n "/^$tag/,/^$tag/{/^$tag/d; s/^# \\?//; p}" "$0"
+}
+
+# $1: exit code
+# $2: message
+die() {
+	printf "$PROGNAME: %s\n" "$2" >&2
+	exit $1
+}
+
+# $1: device name or type
+# vars-out: DEV_DIR DEV_TYPE
+find_device() {
+	local name=$1
+
+	if [ -f "$SYS_PS_DIR/$name/type" ]; then
+		DEV_DIR="$SYS_PS_DIR/$name"
+
+		read -r DEV_TYPE < "$SYS_PS_DIR/$name/type"
+		case "$DEV_TYPE" in
+			Battery | Mains) return 0;;
+			*) die 101 "unsupported device type: $DEV_TYPE";;
+		esac
+	fi
+
+	case "${name%:[0-9]*}" in
+		a | ac | adapter) DEV_TYPE='Mains';;
+		b | bat | battery) DEV_TYPE='Battery';;
+		*) return 1;;
+	esac
+
+	local tgt_idx=${name##*:}
+	[ "$tgt_idx" = "$name" ] && tgt_idx=0
+
+	local dir cur_type= cur_idx=0
+	for dir in "$SYS_PS_DIR"/*; do
+		[ -r $dir/type ] || continue
+
+		read -r cur_type < $dir/type
+		[ "$cur_type" = "$DEV_TYPE" ] || continue
+
+		if [ $cur_idx -eq $tgt_idx ]; then
+			DEV_DIR=$dir
+			return 0
+		else
+			cur_idx=$(( cur_idx + 1 ))
+		fi
+	done
+
+	return 1
+}
+
+# $1: left hand side
+# $2: right hand side
+xtest() {
+	case "$2" in
+		!*) test "$1" != ${2#!};;
+		[0-9]*-[0-9]*) test "$1" -ge "${2%-*}" && test "$1" -le "${2#*-}";;
+		*) test "$1" = "$2";;
+	esac
+}
+
+# $1: option
+# vars-in: DEV_TYPE
+# stdout: name of the property file in /sys/class/power_supply/*/
+opt2prop() {
+	case "$DEV_TYPE" in
+		Battery)
+			case "$1" in
+				-s) echo status;;
+				-c) echo capacity;;
+				-C) echo capacity_level;;
+				--*) printf %s "${1#--}" | tr - _;;
+				*) return 1;;
+			esac
+		;;
+		Mains)
+			case "$1" in
+				-s | --status) echo online;;
+				--*) printf %s "${1#--}" | tr - _;;
+				*) return 1;;
+			esac
+		;;
+		*) return 1;;
+	esac
+}
+
+# $1: name of the property
+# vars-in: RAW
+# stdout: the property value
+read_prop() {
+	local path=$1
+	local value
+
+	read -r value < "$path" || return $?
+
+	if $RAW; then
+		printf '%s\n' "$value" | head -n1
+	else
+		case "${path##*/}" in
+			online)
+				[ "$value" -eq 1 ] && echo online || echo offline;;
+			*)
+				printf '%s\n' "${value# *}" | head -n1 | tr '[:upper:] ' '[:lower:]-'
+		esac
+	fi
+}
+
+# vars-in: DEV_DIR
+# stdout: <dev-type>:<idx> <dev-name> *
+print_all_devs() {
+	local devtype idx
+	for devtype in adapter battery; do
+		for idx in $(seq 0 15); do
+			find_device $devtype:$idx || break
+			echo "$devtype:$idx ${DEV_DIR##*/}"
+		done
+	done
+}
+
+# vars-in: DEV_DIR RAW
+# stdout: <prop-name> <prop-value> *
+print_all_props() {
+	local name path
+
+	for path in "$DEV_DIR"/*; do
+		name=${path##*/}
+		[ -f "$path" ] && [ -r "$path" ] && [ "$name" != 'uevent' ] || continue
+
+		printf '%s ' "$name"
+		read_prop "$path"
+	done
+}
+
+# vars-in: DEV_DIR
+require_dev_dir() {
+	[ "$DEV_DIR" ] || die 100 "device was not specified (-d)"
+}
+
+
+if [ $# -eq 0 ]; then
+	print_all_devs
+	exit 0
+fi
+
+DEV_TYPE=
+DEV_DIR=
+RAW=false
+res=0
+while [ $# -gt 0 ]; do
+	prop=
+	case "$1" in
+		--all) require_dev_dir && print_all_props;;
+		-d | --dev) find_device "$2" || die 101 "no device found for '$2'"; shift;;
+		-h | --help) help; exit 0;;
+		-r | --raw) RAW=true;;
+		-V | --version) echo "$PROGNAME $VERSION"; exit 0;;
+		--) shift; break;;
+		-*) require_dev_dir && prop=$(opt2prop "$1") || die 100 "illegal argument: $1";;
+	esac
+	shift
+	[ "$prop" ] || continue
+
+	[ -e "$DEV_DIR/$prop" ] \
+		|| die 102 "device '${DEV_DIR##*/}' does not provide property '$prop'"
+
+	value=$(read_prop "$DEV_DIR/$prop") \
+		|| die 102 "failed to read $DEV_DIR/$prop"
+
+	if [ $# -eq 0 ] || [ "${1#-}" != "$1" ]; then
+		printf '%s\n' "$value"
+	else
+		xtest "$value" "$1" || res=1
+		shift
+	fi
+done
+
+if [ $# -eq 0 ]; then
+	exit $res
+elif [ $res -eq 0 ]; then
+	exec "$@"
+else
+	exit 0
+fi
