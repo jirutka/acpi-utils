@@ -1,7 +1,7 @@
 = ACPI utils
 :proj-name: acpi-utils
 :gh-name: jirutka/{proj-name}
-:version: 0.0.0
+:version: 0.1.0
 
 {proj-name} provides small utilities for properties of the power supply devices and the (laptop) lid.
 They are designed for easy use in scripts and one-liners for e.g. conditional execution of commands when specified conditions are met.

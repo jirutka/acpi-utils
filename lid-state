@@ -31,7 +31,7 @@
 set -u
 
 readonly PROGNAME='lid-state'
-readonly VERSION='0.0.0'
+readonly VERSION='0.1.0'
 
 readonly STATE_FILE='/proc/acpi/button/lid/LID/state'
 readonly HELP_TAG='#---help---'
