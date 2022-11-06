@@ -84,7 +84,7 @@ die() {
 # $1: device name or type
 # vars-out: DEV_DIR DEV_TYPE
 find_device() {
-	local name=$1
+	local name="$1"
 
 	if [ -f "$SYS_PS_DIR/$name/type" ]; then
 		DEV_DIR="$SYS_PS_DIR/$name"
@@ -102,7 +102,7 @@ find_device() {
 		*) return 1;;
 	esac
 
-	local tgt_idx=${name##*:}
+	local tgt_idx="${name##*:}"
 	[ "$tgt_idx" = "$name" ] && tgt_idx=0
 
 	local dir cur_type= cur_idx=0
@@ -162,7 +162,7 @@ opt2prop() {
 # vars-in: RAW
 # stdout: the property value
 read_prop() {
-	local path=$1
+	local path="$1"
 	local value
 
 	read -r value < "$path" || return $?
